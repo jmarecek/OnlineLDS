@@ -33,19 +33,14 @@
 # or Gal Weiss (wgal@ie.ibm.com).
 
 from __future__ import print_function
-from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
 import scipy.optimize as opt
 import numpy as np
-import rlcompleter
 from sklearn.metrics import f1_score
 import time
 import timeit
 import math
 
-# debugging
-import pdb
-pdb.Pdb.complete=rlcompleter.Completer(locals()).complete
 import traceback
 
 # Matlab loading
@@ -90,7 +85,6 @@ def wave_filtering_SISO(sys,T,k,eta,Rm):
         
         X = np.matrix(X).reshape(-1,1)
   
-        #pdb.set_trace()
         y_pred = np.real(M*X)
         y_pred = y_pred[0,0] 
         y_pred_full.append(y_pred)
