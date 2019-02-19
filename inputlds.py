@@ -14,15 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# If you use this code, please cite our paper:
-# @inproceedings{kozdoba2018,
-#  title={On-Line Learning of Linear Dynamical Systems: Exponential Forgetting in Kalman Filters},
-#  author={Kozdoba, Mark and Marecek, Jakub and Tchrakian, Tigran and Mannor, Shie},
-#  booktitle = {The Thirty-Third AAAI Conference on Artificial Intelligence (AAAI-19)},
-#  note={arXiv preprint arXiv:1809.05870},
-#  year={2019}
-#}
-
 # IBM-Review-Requirement: Art30.3
 # Please note that the following code was developed for the project VaVeL at IBM Research 
 # -- Ireland, funded by the European Union under the Horizon 2020 Program. 
@@ -31,6 +22,15 @@
 # Model Grant Agreement of the Program, the above limitations are in force.
 # For further details please contact Jakub Marecek (jakub.marecek@ie.ibm.com), 
 # or Gal Weiss (wgal@ie.ibm.com).
+
+# If you use this code, please cite our paper:
+# @inproceedings{kozdoba2018,
+#  title={On-Line Learning of Linear Dynamical Systems: Exponential Forgetting in Kalman Filters},
+#  author={Kozdoba, Mark and Marecek, Jakub and Tchrakian, Tigran and Mannor, Shie},
+#  booktitle = {The Thirty-Third AAAI Conference on Artificial Intelligence (AAAI-19)},
+#  note={arXiv preprint arXiv:1809.05870},
+#  year={2019}
+#}
 
 from __future__ import print_function
 from matplotlib.backends.backend_pdf import PdfPages

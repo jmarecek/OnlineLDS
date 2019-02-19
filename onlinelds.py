@@ -49,6 +49,9 @@ from scipy.io import loadmat
 
 verbose = False
 
+def print_verbose(a):
+    if verbose: print(a)
+
 class hankel(object):
     def __init__(self,T):
         self.mat = np.matrix([[2./(pow(i+j+2,3)-(i+j+2)) for j in range(T)] for i in range(T)])
