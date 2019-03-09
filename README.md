@@ -1,6 +1,6 @@
 # OnlineLDS
 
-Source code for the AAAI 2019 paper "On-Line Learning of Linear Dynamical Systems: Exponential Forgetting in Kalman Filters" (https://arxiv.org/abs/1809.05870). If you use this code, please cite the paper as::
+Source code for the AAAI 2019 paper "On-Line Learning of Linear Dynamical Systems: Exponential Forgetting in Kalman Filters" (https://arxiv.org/abs/1809.05870). If you use this code, please cite the paper as:
 
     @inproceedings{kozdoba2018,
      title={On-Line Learning of Linear Dynamical Systems: Exponential Forgetting in Kalman Filters},
