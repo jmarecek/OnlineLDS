@@ -296,3 +296,14 @@ class time_series(object):
           self.event_or_not = self.event_or_not[:T]
           self.inputs = self.inputs[:T]
           self.outputs = self.outputs[:T]
+
+    def logratio(self):
+        """ Replaces the time series by a log-ratio of subsequent element therein."""
+        T = len(self.outputs)
+        newOutputs = []
+        for (a, b) in zip(self.outputs[:T-1], self.outputs[1:T]):
+            newOutputs.append( math.log(a / b) )
+        self.outputs = newOutputs
+
+
+

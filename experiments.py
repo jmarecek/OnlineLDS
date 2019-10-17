@@ -64,9 +64,122 @@ from inputlds import *
 def close_all_figs():
     plt.close('all')
 
-def testIdentification2(T = 100, noRuns = 10, sChoices = [15,3,1], haveKalman = False, haveSpectral = True, G = np.matrix([[0.999,0],[0,0.5]]), F_dash = np.matrix([[1,1]])):
-  if haveKalman: sChoices = sChoices + [T]
+def testIdentification(sys, filenameStub = "test", noRuns = 2, T = 100, k = 5, etaZeros = None, ymin = None, ymax = None, sequenceLabel = None, haveSpectral = True):
+    """ noRuns is the number of runs, T is the time horizon, k is the number of filters, """
+    
+    if k>T:
+        print("Number of filters (k) must be less than or equal to the number of time-steps (T).")
+        exit()
+    if not etaZeros:
+        etaZeros = [1.0, 2500.0]
+    print("etaZeros:")
+    print(etaZeros)
+
+    filename = './outputs/' + filenameStub+'.pdf'
+    pp = PdfPages(filename)
+    
+    error_AR_data = None
+    error_spec_data = None
+    error_persist_data = None
+
+    for i in range(noRuns):
+      print("run %i" % i)
+      inputs = np.zeros(T)
+      sys.solve([[1],[0]],inputs,T)
       
+      if haveSpectral:
+        predicted_spectral, M, error_spec, error_persist = wave_filtering_SISO_ftl(sys, T, k)
+        if error_spec_data is None: error_spec_data = error_spec
+        else: error_spec_data = np.vstack((error_spec_data, error_spec))
+        if error_persist_data is None: error_persist_data = error_persist
+        else: error_persist_data = np.vstack((error_persist_data, error_persist))        
+      
+      for etaZero in etaZeros:  
+        error_AR = np.zeros(T)
+        predicted_AR = np.zeros(T)
+        s=2
+        D=1.
+        theta = [0 for i in range(s)]
+        for t in range(s,T):
+            eta = pow(float(t),-0.5) / etaZero
+            Y = sys.outputs[t]
+            loss = cost_AR(theta, Y, list(reversed(sys.outputs[t-s:t])))
+            error_AR[t] = pow(loss, 0.5)
+            grad = gradient_AR(theta, Y, list(reversed(sys.outputs[t-s:t])))       
+            #print("Loss: at time step %d :" % (t), loss)
+            theta = [theta[i] -eta*grad[i] for i in range(len(theta))] #gradient step
+            norm_theta = np.linalg.norm(theta)
+            if norm_theta>D: theta = [D*i/norm_theta for i in theta] #projection step
+            predicted_AR[t] = np.dot(list(reversed(sys.outputs[t-s:t])),theta)
+            
+        if error_AR_data is None: error_AR_data = error_AR
+        else: error_AR_data = np.vstack((error_AR_data, error_AR))        
+    
+        p1 = plt.figure()
+        if ymax and ymin: plt.ylim(ymin, ymax)
+        if sum(inputs[1:]) > 0: plt.plot(inputs[1:], label='Input')
+        if sequenceLabel: plt.plot([float(i) for i in sys.outputs][1:], label=sequenceLabel, color='#000000', linewidth=2, antialiased = True)
+        else: plt.plot([float(i) for i in sys.outputs][1:], label='Output', color='#000000', linewidth=2, antialiased = True)
+        #plt.plot([-i for i in predicted_output], label='Predicted output') #for some reason, usual way produces -ve estimate
+        if haveSpectral: 
+            plt.plot([i for i in predicted_spectral], label='Spectral')
+        #lab = 'AR(3) / OGD, c_0 = ' + str(etaZero)
+        lab = "AR(" + str(s) + "), c = " + str(int(etaZero))
+        plt.plot(predicted_AR, label = lab)
+        plt.legend()
+        plt.xlabel('Time')
+        plt.ylabel('Output')         
+        p1.show()
+        p1.savefig(pp, format='pdf')
+
+        p2 = plt.figure()
+        plt.ylim(0, 20)
+        if haveSpectral: 
+            plt.plot(error_spec, label='Spectral')
+            plt.plot(error_persist, label='Persistence')
+        plt.plot(error_AR, label=lab)
+        plt.legend()
+        p2.show()
+        plt.xlabel('Time')
+        plt.ylabel('Error')           
+        p2.savefig(pp, format='pdf')
+
+    error_AR_mean = np.mean(error_AR_data, 0)
+    error_AR_std = np.std(error_AR_data, 0)
+    if haveSpectral:
+      error_spec_mean = np.mean(error_spec_data, 0)
+      error_spec_std = np.std(error_spec_data, 0)
+      error_persist_mean = np.mean(error_persist_data, 0)
+      error_persist_std = np.std(error_persist_data, 0)    
+
+    p3 = plt.figure()
+    if ymax and ymin: plt.ylim(ymin, ymax)    
+    if haveSpectral:
+      plt.plot(error_spec_mean, label='Spectral', color='#1B2ACC', linewidth=2, antialiased = True)
+      plt.fill_between(range(0,T-1), error_spec_mean-error_spec_std, error_spec_mean+error_spec_std, alpha=0.2, edgecolor='#1B2ACC', facecolor='#089FFF',
+      linewidth=1, antialiased=True)
+      plt.plot(error_persist_mean, label='Persistence', color='#CC1B2A', linewidth=2, antialiased = True)
+      plt.fill_between(range(0,T-1), error_persist_mean-error_persist_std, error_persist_mean+error_persist_std, alpha=0.2, edgecolor='#CC1B2A', facecolor='#FF0800',
+      linewidth=1, antialiased=True)
+
+    cAR1 = (42.0/255, 204.0 / 255.0, 1.0/255)
+    bAR1 = (1.0, 204.0 / 255.0, 0.0) # , alphaValue
+    plt.ylim(0, 20)
+    plt.plot(error_AR_mean, label='AR(3)', color=cAR1, linewidth=2, antialiased = True)
+    plt.fill_between(range(0,T), error_AR_mean-error_AR_std, error_AR_mean+error_AR_std, alpha=0.2, edgecolor=cAR1, facecolor=bAR1,
+    linewidth=1, antialiased=True)    
+    plt.legend()
+    plt.xlabel('Time')
+    plt.ylabel('Error')    
+    p3.savefig(pp, format='pdf')
+
+    pp.close()
+    print("See the output in " + filename)
+
+def testIdentification2(T = 100, noRuns = 10, sChoices = [15,3,1], haveKalman = False, haveSpectral = True, G = np.matrix([[0.999,0],[0,0.5]]), F_dash = np.matrix([[1,1]]), sequenceLabel = ""):
+  if haveKalman: sChoices = sChoices + [T]
+  if len(sequenceLabel) > 0: sequenceLabel = " (" + sequenceLabel + ")"
+
   if noRuns < 2:
     print("Number of runs has to be larger than 1.")
     exit()
@@ -153,9 +266,9 @@ def testIdentification2(T = 100, noRuns = 10, sChoices = [15,3,1], haveKalman = 
             # For the spectral filtering etc, we use: loss = pow(np.linalg.norm(sys.outputs[t] - y_pred), 2)
             if error_Kalman_data is None: error_Kalman_data = np.array([pow(np.linalg.norm(Y_pred[i][0,0] - Y[i]), 2) for i in range(len(Y))])
             else: error_Kalman_data = np.vstack((error_Kalman_data, [pow(np.linalg.norm(Y_pred[i][0,0] - Y[i]), 2) for i in range(len(Y))]))
-            plt.plot([i[0,0] for i in Y_pred], label="Kalman", color=(42.0/255.0, 204.0 / 255.0, 200.0/255.0), linewidth=2, antialiased = True)
+            plt.plot([i[0,0] for i in Y_pred], label="Kalman" + sequenceLabel, color=(42.0/255.0, 204.0 / 255.0, 200.0/255.0), linewidth=2, antialiased = True)
         else:
-            plt.plot([i[0,0] for i in Y_pred], label='AR(%i)' % (s+1), color=(42.0/255.0, 204.0 / 255.0, float(min(255.0,s))/255.0), linewidth=2, antialiased = True)
+            plt.plot([i[0,0] for i in Y_pred], label='AR(%i)' % (s+1)  + sequenceLabel, color=(42.0/255.0, 204.0 / 255.0, float(min(255.0,s))/255.0), linewidth=2, antialiased = True)
         
         plt.xlabel('Time')
         plt.ylabel('Prediction') 
@@ -163,7 +276,7 @@ def testIdentification2(T = 100, noRuns = 10, sChoices = [15,3,1], haveKalman = 
     
     if haveSpectral:    
       predicted_output, M, error_spec, error_persist = wave_filtering_SISO_ftl(sys, T, 5)
-      plt.plot(predicted_output, label='Spectral', color='#1B2ACC', linewidth=2, antialiased = True)
+      plt.plot(predicted_output, label='Spectral' + sequenceLabel, color='#1B2ACC', linewidth=2, antialiased = True)
       if error_spec_data is None: error_spec_data = error_spec
       else: error_spec_data = np.vstack((error_spec_data, error_spec))
       if error_persist_data is None: error_persist_data = error_persist
@@ -192,9 +305,9 @@ def testIdentification2(T = 100, noRuns = 10, sChoices = [15,3,1], haveKalman = 
     p3, ax = plt.subplots()
     plt.ylim(ylim)
     if haveSpectral:
-      plt.plot(range(0,Tlim), error_spec[:Tlim], label='Spectral', color='#1B2ACC', linewidth=2, antialiased = True)
+      plt.plot(range(0,Tlim), error_spec[:Tlim], label='Spectral' + sequenceLabel, color='#1B2ACC', linewidth=2, antialiased = True)
       plt.fill_between(range(0,Tlim), (error_spec_mean-error_spec_std)[:Tlim], (error_spec_mean+error_spec_std)[:Tlim], alpha=alphaValue, edgecolor='#1B2ACC', facecolor='#089FFF', linewidth=1, antialiased=True)
-      plt.plot(range(0,Tlim), error_persist[:Tlim], label='Persistence', color='#CC1B2A', linewidth=2, antialiased = True)
+      plt.plot(range(0,Tlim), error_persist[:Tlim], label='Persistence' + sequenceLabel, color='#CC1B2A', linewidth=2, antialiased = True)
       plt.fill_between(range(0,Tlim), (error_persist_mean-error_persist_std)[:Tlim], (error_persist_mean+error_persist_std)[:Tlim], alpha=alphaValue, edgecolor='#CC1B2A', facecolor='#FF0800', linewidth=1, antialiased=True)
     #import matplotlib.transforms as mtransforms
     #trans = mtransforms.blended_transform_factory(ax.transData, ax.transData)
@@ -206,14 +319,14 @@ def testIdentification2(T = 100, noRuns = 10, sChoices = [15,3,1], haveKalman = 
     #print(error_AR1_data)
     #print(error_AR1_mean)
     #print(Tlim)
-    plt.plot(error_AR1_mean[:Tlim], label='AR(2)', color=cAR1, linewidth=2, antialiased = True)
+    plt.plot(error_AR1_mean[:Tlim], label='AR(2)' + sequenceLabel, color=cAR1, linewidth=2, antialiased = True)
     plt.fill_between(range(0,Tlim), (error_AR1_mean-error_AR1_std)[:Tlim], (error_AR1_mean+error_AR1_std)[:Tlim], alpha=alphaValue, edgecolor=cAR1, facecolor=bAR1, linewidth=1, antialiased=True) #transform=trans) #offset_position="data") alpha=alphaValue, 
     if haveKalman:
       cK = (42.0/255.0, 204.0 / 255.0, 200.0/255.0)
       bK = (1.0, 204.0 / 255.0, 200.0/255.0) # alphaValue
       print(cK)
       print(bK)
-      plt.plot(error_Kalman_mean[:Tlim], label='Kalman', color=cK, linewidth=2, antialiased = True)
+      plt.plot(error_Kalman_mean[:Tlim], label='Kalman' + sequenceLabel, color=cK, linewidth=2, antialiased = True)
       plt.fill_between(range(0,Tlim), (error_Kalman_mean-error_Kalman_std)[:Tlim], (error_Kalman_mean+error_Kalman_std)[:Tlim], alpha=alphaValue, facecolor=bK, edgecolor=cK, linewidth=1, antialiased=True) # transform = trans) #offset_position="data") 
     plt.legend()
     plt.xlabel('Time')
@@ -502,22 +615,32 @@ def testImpactOfS(T = 200, noRuns = 100, sMax = 15):
  pp.close()
 
 
-def testSeqD0():
+def testSeqD0(noRuns = 100):
     ts = time_series(matlabfile = './OARIMA_code_data/data/setting6.mat', varname="seq_d0")
     T = len(ts.outputs)
-    testIdentification(ts, "seq0-complete", 1, T, 5, (2500.0, 5000.0), sequenceLabel = "seq_d0", haveSpectral = False)
+    testIdentification(ts, "seq0-complete", noRuns, T, 5, sequenceLabel = "seq_d0", haveSpectral = False)
     T = min(20000, len(ts.outputs))
-    testIdentification(ts, "seq0-20000", 1, T, 5, (2500.0, 5000.0), sequenceLabel = "seq_d0", haveSpectral = False)    
+    testIdentification(ts, "seq0-20000", noRuns, T, 5, sequenceLabel = "seq_d0", haveSpectral = False)    
     T = min(2000, len(ts.outputs))
-    testIdentification(ts, "seq0-2000", 1, T, 5, (2500.0, 5000.0), 30, 45, sequenceLabel = "seq_d0", haveSpectral = False)
+    testIdentification(ts, "seq0-2000", noRuns, T, 5, sequenceLabel = "seq_d0", haveSpectral = False)
     T = min(200, len(ts.outputs))
-    testIdentification(ts, "seq0-200", 1, T, 5, (2500.0, 5000.0), 30, 45, sequenceLabel = "seq_d0", haveSpectral = False)    
+    testIdentification(ts, "seq0-200", noRuns, T, 5, sequenceLabel = "seq_d0", haveSpectral = False)    
     T = min(100, len(ts.outputs))
-    testIdentification(ts, "seq0-short-k5", 1, T, 5, (100.0, 1000.0, 2500.0, 10000.0), 27, 37, sequenceLabel = "seq_d0")
+    testIdentification(ts, "seq0-short-k5", 1, T, 5, sequenceLabel = "seq_d0")
     #testIdentification(ts, "seq0-short-k50", 1, T, 50, 27, 37, sequenceLabel = "seq_d0")
     #testIdentification(ts, "seq0-short-k5", 1, T, 5, sequenceLabel = "seq_d0")
     #testIdentification(ts, "seq0-short-k50", 1, T, 50, sequenceLabel = "seq_d0")
-
+    ts = time_series(matlabfile = './OARIMA_code_data/data/setting6.mat', varname="seq_d0")
+    ts.logratio()
+    testIdentification(ts, "logratio-complete", noRuns, T, 5, sequenceLabel = "lr_d0", haveSpectral = False)
+    T = min(20000, len(ts.outputs))
+    testIdentification(ts, "logratio-20000", noRuns, T, 5,  sequenceLabel = "lr_d0", haveSpectral = False)    
+    T = min(2000, len(ts.outputs))
+    testIdentification(ts, "logratio-2000", noRuns, T, 5, sequenceLabel = "lr_d0", haveSpectral = False)
+    T = min(200, len(ts.outputs))
+    testIdentification(ts, "logratio-200", noRuns, T, 5, sequenceLabel = "lr_d0", haveSpectral = False)    
+    T = min(100, len(ts.outputs))
+    testIdentification(ts, "logratio-short-k5", noRuns, T, 5, sequenceLabel = "lr_d0")
 
 def test_AR():
     ts = time_series(matlabfile = './OARIMA_code_data/data/setting6.mat', varname="seq_d0")
@@ -540,43 +663,44 @@ def test_AR():
 
         if norm_theta>D: theta = [D*i/norm_theta for i in theta] #projection step
 
-finalVersion = True
-if __name__ == '__main__' and finalVersion:
+version = "FinalAAAI"
+version = "Working"
+version = "Extended"
+
+if __name__ == '__main__':
     try:
         close_all_figs()
-        # The following 3 calls recreate the plots used in the final 8-page version of the paper.
-        # The run-time should be within 2 hours. There are very few messages printed.
-        testIdentification2(500, noRuns = 100, sChoices = [1], haveKalman = True, haveSpectral = True)
-        #testNoiseImpact()
-        #testImpactOfS()
+        if version == "Extended":
+          # The following calls adds the plots for the extended version
+          testSeqD0()
+        if version == "FinalAAAI":
+          # These calls produce the AAAI 2019 figures (8-page version)
+          testIdentification2(500, noRuns = 100, sChoices = [1], haveKalman = True, haveSpectral = True)
+          testNoiseImpact()
+          testImpactOfS()
+        if version == "Working":
+            # These calls produce illuminating plots, which did not make it into the final 8-page version of the paper.  
+            None
+            #testIdentification2(T = 100, noRuns = 10, haveSpectral = True)
+            #testIdentification2(200, 10, haveSpectral = False)
+            #timeSeqD0()
+            #testSisoInvariantShort(100)
+            #testIdentification2(100)
+            #testSeqD0()
+            #timeSeqD0()
+            #testSeqD1()
+            #testSeqD2()
+            #testSisoInvariantLong()
+            #testSYSID()
+            #gradient_AR_test(0)
+            #test_AR()
+            #transition = np.matrix([[1.,-0.8],[-.6,.3]])
+            #observation = np.matrix([[1.0,1.0]])
+            #testIdentification2(20, noRuns = 100, sChoices = [1], haveKalman = True, haveSpectral = True, G = transition, F_dash = observation)
+
     except (KeyboardInterrupt, SystemExit):
             raise
     except:
         print(" Error: ")
         print(traceback.format_exc())
 
-if __name__ == '__main__' and (not finalVersion):
-    try:
-        # These calls produce illuminating plots, which did not make it into the final 8-page version of the paper.  
-        None
-        #testIdentification2(T = 100, noRuns = 10, haveSpectral = True)
-        #testIdentification2(200, 10, haveSpectral = False)
-        #timeSeqD0()
-        #testSisoInvariantShort(100)
-        #testIdentification2(100)
-        #testSeqD0()
-        #timeSeqD0()
-        #testSeqD1()
-        #testSeqD2()
-        #testSisoInvariantLong()
-        #testSYSID()
-        #gradient_AR_test(0)
-        #test_AR()
-        #transition = np.matrix([[1.,-0.8],[-.6,.3]])
-        #observation = np.matrix([[1.0,1.0]])
-        #testIdentification2(20, noRuns = 100, sChoices = [1], haveKalman = True, haveSpectral = True, G = transition, F_dash = observation)
-    except (KeyboardInterrupt, SystemExit):
-            raise
-    except:
-        print(" Error: ")
-        print(traceback.format_exc())
