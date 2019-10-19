@@ -616,6 +616,10 @@ def testImpactOfS(T = 200, noRuns = 100, sMax = 15):
 
 
 def testSeqD0(noRuns = 100):
+  plain = False
+  lr = True
+    
+  if plain: 
     ts = time_series(matlabfile = './OARIMA_code_data/data/setting6.mat', varname="seq_d0")
     T = len(ts.outputs)
     testIdentification(ts, "seq0-complete", noRuns, T, 5, sequenceLabel = "seq_d0", haveSpectral = False)
@@ -630,8 +634,10 @@ def testSeqD0(noRuns = 100):
     #testIdentification(ts, "seq0-short-k50", 1, T, 50, 27, 37, sequenceLabel = "seq_d0")
     #testIdentification(ts, "seq0-short-k5", 1, T, 5, sequenceLabel = "seq_d0")
     #testIdentification(ts, "seq0-short-k50", 1, T, 50, sequenceLabel = "seq_d0")
+  if lr:
     ts = time_series(matlabfile = './OARIMA_code_data/data/setting6.mat', varname="seq_d0")
     ts.logratio()
+    T = len(ts.outputs) # has to go after the log-ratio truncation by one
     testIdentification(ts, "logratio-complete", noRuns, T, 5, sequenceLabel = "lr_d0", haveSpectral = False)
     T = min(20000, len(ts.outputs))
     testIdentification(ts, "logratio-20000", noRuns, T, 5,  sequenceLabel = "lr_d0", haveSpectral = False)    
