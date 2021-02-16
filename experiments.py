@@ -58,8 +58,8 @@ from scipy.io import loadmat
 
 verbose = False
 
-from onlinelds import *
-from inputlds import *
+from LDS.onlinelds import *
+from LDS.inputlds import *
 
 def close_all_figs():
     plt.close('all')
